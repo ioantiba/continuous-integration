@@ -1,0 +1,65 @@
+version: '3.4'
+
+services:
+  jenkins:
+    image: 'jenkins/jenkins:lts'
+    container_name: jenkins
+    restart: always
+    ports:
+      - 8070:8080
+      - 50000:50000
+    volumes:
+      - ${jenkins_home}:/var/jenkins_home
+    secrets:
+      - artifactoryPassword
+    networks:
+      - internal-network
+    environment:
+      JAVA_OPTS: -Djava.awt.headless=true -Dhudson.remoting.Launcher.pingIntervalSec=0
+
+  sonarqube:
+    image: 'sonarqube:latest'
+    container_name: sonar
+    ports:
+      - 8071:9000
+    networks:
+      - internal-network
+    environment:
+      - sonar.jdbc.url=jdbc:postgresql://db:5432/sonar
+      - sonar.jdbc.username=postgres
+      - sonar.jdbc.password=postgres
+    volumes:
+      - ${sonarqube_conf}:/opt/sonarqube/conf #configuration files, such as sonar.properties
+      - ${sonarqube_data}:/opt/sonarqube/data #data files, such as the embedded H2 database and Elasticsearch indexes
+      - ${sonarqube_extensions}:/opt/sonarqube/extensions # plugins, such as language analyzers
+      - ${sonarqube_logs}:/opt/sonarqube/logs
+
+  db:
+    image: 'postgres:latest'
+    container_name: postgres
+    ports:
+      - 5438:5432
+    networks:
+      - internal-network
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=sonar
+    volumes:
+      - ${postgresql}:/var/lib/postgresql
+      # This needs explicit mapping due to https://github.com/docker-library/postgres/blob/4e48e3228a30763913ece952c611e5e9b95c8759/Dockerfile.template#L52
+      - ${postgresql_data}:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8072:8080
+
+secrets:
+  artifactoryPassword:
+    file: ./source/default-jenkins-admin-password
+
+networks:
+  internal-network:
+    driver: bridge
